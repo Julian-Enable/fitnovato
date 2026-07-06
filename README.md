@@ -1,81 +1,104 @@
 # FitNovato
 
-App web fitness para principiantes. Funciona como una SPA estática con datos locales, reglas internas y guardado por cuenta en el navegador.
+App web fitness para principiantes. Funciona como una SPA con backend opcional, datos locales por cuenta y sincronización con PostgreSQL cuando hay backend configurado.
 
-## Deploy actual
+## Arquitectura v2 (2026-07-06)
 
-- Frontend estático: `index.html`, `styles.css`, `app.js`, `config.js`.
-- Backend API: carpeta `backend/`.
-- Base de datos recomendada: PostgreSQL en Railway.
+- **Frontend**: HTML + CSS + JS modular con **Vite** como bundler. Estética minimalista Apple Health (light + dark mode automático).
+- **Backend**: Node.js + Express + PostgreSQL + JWT + bcrypt en `backend/`.
+- **Deploy**: Vercel (frontend, build con Vite) + Railway (backend + PostgreSQL).
+
+## Estructura
+
+```
+fitnovato/
+├── index.html              # HTML raíz con #app y /config.js
+├── vite.config.js          # Config Vite
+├── vercel.json             # Build: npm run build, output: dist
+├── package.json            # Scripts: dev / build / preview / start (backend)
+├── public/
+│   ├── config.js           # window.FITNOVATO_API_URL (runtime config)
+│   └── fitness-banner.png
+├── src/
+│   ├── main.js             # Entry point, router de vistas
+│   ├── styles.css          # Design system completo
+│   ├── data/               # foods.js, exercises.js, lessons.js
+│   ├── state/store.js      # Auth + state con sync al backend
+│   ├── api/client.js       # Wrapper fetch con auth
+│   ├── utils/              # format, dom, calc
+│   ├── components/         # nav, toast, ui (inputs, cards, badges)
+│   └── views/              # 16 vistas (auth, home, profile, calories, food, plate, recipes, market, routine, workout, exercises, cardio, progress, adjustments, learn, config)
+└── backend/                # API Express + PostgreSQL
+    └── src/
+        ├── server.js
+        ├── db.js
+        ├── schema.js
+        └── migrate.js
+```
+
+## Desarrollo local
+
+```bash
+npm install
+npm run dev          # http://localhost:5173
+```
+
+Para forzar modo local (sin backend) aunque `public/config.js` tenga una URL:
+
+```
+http://localhost:5173/?local=1
+```
+
+## Build de producción
+
+```bash
+npm run build        # genera dist/
+npm run preview      # sirve dist/ en http://localhost:4173
+```
 
 ## Deploy del frontend en Vercel
 
-1. Entra a Vercel y crea un nuevo proyecto desde este repositorio.
-2. Framework preset: `Other`.
-3. Root directory: raíz del repositorio.
-4. Build command: vacío.
-5. Output directory: vacío o `.`.
-6. Deploy.
+1. Importa el repo en Vercel.
+2. Framework preset: **Vite** (se detecta automáticamente).
+3. Build command: `npm run build` (automático).
+4. Output directory: `dist` (automático).
+5. Deploy.
 
-Después de publicar el backend en Railway, copia la URL pública del backend y ponla en `config.js`:
-
-```js
-window.FITNOVATO_API_URL = "https://TU-BACKEND.up.railway.app";
-```
-
-Luego haz commit y push para que Vercel actualice el frontend.
+El archivo `public/config.js` se sirve estático y define `window.FITNOVATO_API_URL`. Para cambiar la URL del backend sin rebuild, edita ese archivo y haz push.
 
 ## Deploy del backend en Railway
 
-1. En Railway crea un proyecto nuevo desde este repositorio.
-2. Opción recomendada: en `Settings > Source`, configura `Root Directory` como `backend`.
-3. Opción alternativa: deja la raíz del repo. El `package.json`, `railway.json` y `Procfile` de la raíz redirigen Railway al backend.
-3. Agrega PostgreSQL al proyecto.
-4. En variables del servicio backend configura:
-   - `DATABASE_URL`: Railway la agrega desde PostgreSQL.
-   - `JWT_SECRET`: una cadena larga y privada.
-   - `FRONTEND_ORIGIN`: la URL de Vercel, por ejemplo `https://fitnovato.vercel.app`.
-5. Start command si usas raíz: `npm start`.
-6. Start command si usas `backend` como root: `npm start`.
-7. El backend corre migraciones y luego inicia la API.
+1. En Railway crea un proyecto desde este repo.
+2. Configura `Root Directory` como `backend` (recomendado) o deja la raíz (el `package.json` raíz redirige con `npm --prefix backend start`).
+3. Agrega PostgreSQL.
+4. Variables de entorno del servicio backend:
+   - `DATABASE_URL`: la agrega Railway desde PostgreSQL.
+   - `JWT_SECRET`: cadena larga y privada (mínimo 32 bytes).
+   - `FRONTEND_ORIGIN`: URL de Vercel, ej. `https://fitnovato.vercel.app`.
+   - `NODE_ENV`: `production` (recomendado).
+5. Start command: `npm start`.
+6. El backend corre migraciones al arrancar y luego inicia la API.
 
-Si Railway detecta Caddy o `staticfile`, está apuntando al frontend estático. Cambia el Root Directory a `backend` o redeploya con la configuración de raíz incluida en este repo.
+## Endpoints del backend
 
-Endpoints principales:
+- `GET /health` — estado del servicio y de la base de datos
+- `POST /auth/register` — crea usuario, devuelve token + estado inicial
+- `POST /auth/login` — verifica credenciales, devuelve token + estado
+- `GET /me/state` — (auth) devuelve el estado completo del usuario
+- `PUT /me/state` — (auth) sobrescribe el estado del usuario
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /me/state`
-- `PUT /me/state`
-- `GET /health`
+## Características
 
-## Deploy en GitHub Pages
+- Cálculo de calorías y macros con fórmula Mifflin-St Jeor.
+- Diario de comidas con catálogo de 32 alimentos locales (Colombia/Latinoamérica).
+- Constructor de platos y recetas con estimación automática de macros.
+- Generación de rutinas por reglas según objetivo, nivel, días, tiempo, lugar y limitaciones.
+- Registro de entrenamientos con recomendación de progresión.
+- Seguimiento semanal de peso, hábitos y ajuste del plan.
+- Lista de mercado con cálculo por días.
+- Modo local (sin backend) o modo sincronizado (con backend).
+- Dark mode automático según preferencia del sistema.
+- Responsive: bottom tabs en mobile, top nav con dropdowns en desktop.
+- Toasts de feedback, validación de formularios, accesibilidad WCAG AA.
 
-1. Crea un repositorio nuevo en GitHub, por ejemplo `fitnovato`.
-2. Sube estos archivos en la raíz del repositorio:
-   - `index.html`
-   - `styles.css`
-   - `app.js`
-   - `.nojekyll`
-   - carpeta `assets/`
-3. En GitHub entra a `Settings > Pages`.
-4. En `Build and deployment`, selecciona:
-   - Source: `Deploy from a branch`
-   - Branch: `main`
-   - Folder: `/root`
-5. Guarda. GitHub publicará la app en una URL similar a:
-   `https://TU-USUARIO.github.io/fitnovato/`
-
-## Nota técnica
-
-Este MVP no usa IA, APIs externas ni backend. El registro por correo separa la información por usuario dentro de `localStorage`.
-
-Para producción se recomienda agregar backend propio con:
-
-- Base de datos de usuarios.
-- Contraseñas cifradas.
-- Sesiones seguras.
-- Recuperación y verificación de correo.
-- Persistencia multi-dispositivo.
-
-Deploy refresh: 2026-07-06T03:25Z
+Deploy refresh: 2026-07-06

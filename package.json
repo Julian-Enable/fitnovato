@@ -1,10 +1,17 @@
 {
   "name": "fitnovato",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "postinstall": "npm --prefix backend install",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "start": "npm --prefix backend start"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
   },
   "engines": {
     "node": ">=20"
