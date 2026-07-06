@@ -1,5 +1,6 @@
 const STORE_KEY = "fitnovato-v1";
 const AUTH_KEY = "fitnovato-auth-v1";
+const API_URL_KEY = "fitnovato-api-url";
 
 const navItems = [
   ["inicio", "Inicio"],
@@ -132,11 +133,16 @@ function userStateKey(email = auth.currentEmail) {
   return `${STORE_KEY}:user:${email}`;
 }
 
+function apiBase() {
+  const configured = window.FITNOVATO_API_URL || localStorage.getItem(API_URL_KEY) || "";
+  return configured.replace(/\/$/, "");
+}
+
 function loadAuth() {
   try {
-    return { users: {}, currentEmail: "", ...JSON.parse(localStorage.getItem(AUTH_KEY)) };
+    return { users: {}, currentEmail: "", token: "", user: null, ...JSON.parse(localStorage.getItem(AUTH_KEY)) };
   } catch {
-    return { users: {}, currentEmail: "" };
+    return { users: {}, currentEmail: "", token: "", user: null };
   }
 }
 
@@ -145,6 +151,7 @@ function saveAuth() {
 }
 
 function currentUser() {
+  if (auth.token && auth.user) return auth.user;
   return auth.currentEmail ? auth.users[auth.currentEmail] : null;
 }
 
@@ -159,6 +166,33 @@ function loadState() {
 function saveState() {
   if (!auth.currentEmail) return;
   localStorage.setItem(userStateKey(), JSON.stringify(state));
+  saveRemoteState();
+}
+
+let remoteSaveTimer = null;
+
+function saveRemoteState() {
+  if (!apiBase() || !auth.token) return;
+  clearTimeout(remoteSaveTimer);
+  remoteSaveTimer = setTimeout(async () => {
+    try {
+      await apiRequest("/me/state", {
+        method: "PUT",
+        body: JSON.stringify({ state })
+      });
+    } catch (error) {
+      console.warn("No se pudo sincronizar con el backend", error);
+    }
+  }, 600);
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
+  const response = await fetch(`${apiBase()}${path}`, { ...options, headers });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Error de conexión");
+  return payload;
 }
 
 function calcProfile(profile = state.profile) {
@@ -295,6 +329,15 @@ function renderAuth() {
           <button class="btn secondary" type="submit">Registrarme</button>
           <p id="registerMsg" class="subtle"></p>
         </form>
+      </div>
+      <div class="panel stack">
+        <h2>Conexión backend</h2>
+        <p class="subtle">Para producción pega aquí la URL de Railway. Si está vacío, la app usa modo local en este navegador.</p>
+        <form id="apiConfigForm" class="grid two">
+          ${input("apiUrl", "URL API Railway", apiBase(), "url")}
+          <div class="btn-row"><button class="btn secondary" type="submit">Guardar URL</button></div>
+        </form>
+        <p class="subtle">Estado actual: <strong>${apiBase() ? "con backend" : "modo local"}</strong></p>
       </div>
       <div class="auth-note">
         <strong>Nota técnica del MVP:</strong>
@@ -696,8 +739,12 @@ function renderConfig() {
   return `
     <div class="panel">
       <h2>Configuración</h2>
-      <p class="subtle">Cuenta activa: <strong>${user.email}</strong>. La app guarda la información de esta cuenta localmente en este navegador. No usa IA, APIs, escáneres, pagos ni servicios externos.</p>
-      <div class="notice">Para una app pública falta conectar este flujo a un backend propio: tabla de usuarios, autenticación por sesión o token, recuperación de contraseña y base de datos por usuario.</div>
+      <p class="subtle">Cuenta activa: <strong>${user.email}</strong>. ${apiBase() ? "La app sincroniza esta cuenta con el backend configurado." : "La app guarda la información de esta cuenta localmente en este navegador."} No usa IA, escáneres, pagos ni APIs externas de alimentos.</p>
+      <div class="notice">Backend configurado: <strong>${apiBase() || "ninguno"}</strong>. Para producción usa la URL pública de Railway.</div>
+      <form id="apiConfigForm" class="grid two">
+        ${input("apiUrl", "URL API Railway", apiBase(), "url")}
+        <div class="btn-row"><button class="btn secondary" type="submit">Guardar URL</button></div>
+      </form>
       <div class="btn-row">
         <button class="btn secondary" data-export>Exportar datos</button>
         <button class="btn secondary" data-logout>Cerrar sesión</button>
@@ -711,9 +758,30 @@ function bindAuth() {
   const loginForm = document.querySelector("#loginForm");
   const registerForm = document.querySelector("#registerForm");
 
-  loginForm.addEventListener("submit", event => {
+  bindApiConfig();
+
+  loginForm.addEventListener("submit", async event => {
     event.preventDefault();
     const data = normalizeAuthData(new FormData(loginForm));
+    if (apiBase()) {
+      try {
+        const result = await apiRequest("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email: data.email, password: data.password })
+        });
+        auth.token = result.token;
+        auth.user = result.user;
+        auth.currentEmail = result.user.email;
+        auth.users[result.user.email] = result.user;
+        state = { ...structuredClone(defaultState), ...result.state };
+        saveAuth();
+        localStorage.setItem(userStateKey(result.user.email), JSON.stringify(state));
+        render();
+      } catch (error) {
+        document.querySelector("#loginMsg").textContent = error.message;
+      }
+      return;
+    }
     const user = auth.users[data.email];
     if (!user || user.password !== data.password) {
       document.querySelector("#loginMsg").textContent = "Correo o contraseña incorrectos.";
@@ -725,11 +793,32 @@ function bindAuth() {
     render();
   });
 
-  registerForm.addEventListener("submit", event => {
+  registerForm.addEventListener("submit", async event => {
     event.preventDefault();
     const data = normalizeAuthData(new FormData(registerForm));
     if (!data.name || !data.email || data.password.length < 6) {
       document.querySelector("#registerMsg").textContent = "Completa nombre, correo y una contraseña de mínimo 6 caracteres.";
+      return;
+    }
+    if (apiBase()) {
+      try {
+        const initialState = structuredClone(defaultState);
+        initialState.profile.name = data.name;
+        const result = await apiRequest("/auth/register", {
+          method: "POST",
+          body: JSON.stringify({ name: data.name, email: data.email, password: data.password, state: initialState })
+        });
+        auth.token = result.token;
+        auth.user = result.user;
+        auth.currentEmail = result.user.email;
+        auth.users[result.user.email] = result.user;
+        state = { ...structuredClone(defaultState), ...result.state };
+        saveAuth();
+        localStorage.setItem(userStateKey(result.user.email), JSON.stringify(state));
+        render();
+      } catch (error) {
+        document.querySelector("#registerMsg").textContent = error.message;
+      }
       return;
     }
     if (auth.users[data.email]) {
@@ -743,6 +832,17 @@ function bindAuth() {
     saveAuth();
     saveState();
     render();
+  });
+}
+
+function bindApiConfig() {
+  document.querySelectorAll("#apiConfigForm").forEach(form => {
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const value = String(new FormData(form).get("apiUrl") || "").trim().replace(/\/$/, "");
+      localStorage.setItem(API_URL_KEY, value);
+      render();
+    });
   });
 }
 
@@ -787,6 +887,8 @@ function marketCategory(category) {
 }
 
 function bindView() {
+  bindApiConfig();
+
   document.querySelectorAll("[data-goto]").forEach(btn => btn.addEventListener("click", () => {
     state.active = btn.dataset.goto;
     saveState();
@@ -922,6 +1024,8 @@ function bindView() {
   const logoutBtn = document.querySelector("[data-logout]");
   if (logoutBtn) logoutBtn.addEventListener("click", () => {
     auth.currentEmail = "";
+    auth.token = "";
+    auth.user = null;
     saveAuth();
     state = structuredClone(defaultState);
     render();
