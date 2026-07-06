@@ -91,31 +91,31 @@ const lessons = [
 const defaultState = {
   active: "inicio",
   profile: {
-    name: "Valentina",
-    age: 28,
-    sex: "mujer",
-    weight: 78,
-    height: 165,
-    experience: "principiante",
-    goal: "perder grasa",
-    days: 3,
-    minutes: 55,
-    place: "gimnasio completo",
+    name: "",
+    age: "",
+    sex: "",
+    weight: "",
+    height: "",
+    experience: "",
+    goal: "",
+    days: "",
+    minutes: "",
+    place: "",
     limitations: "",
-    activity: "ligera",
-    meals: 4,
+    activity: "",
+    meals: "",
     avoid: "",
-    preferences: "comida colombiana, fácil de preparar",
-    budget: "medio",
-    targetWeight: 70,
-    deficit: "moderado"
+    preferences: "",
+    budget: "",
+    targetWeight: "",
+    deficit: ""
   },
   diary: [],
   plates: [],
   recipes: [],
   workoutLogs: [],
   cardio: [],
-  progress: [{ week: 1, weight: 78, food: "bien", training: "bien", energy: "normal", hunger: "normal", sleep: "7 h", water: "6 vasos", mood: "motivada", difficulty: "normal" }]
+  progress: []
 };
 
 let auth = loadAuth();
@@ -157,10 +157,27 @@ function currentUser() {
 
 function loadState() {
   try {
-    return { ...structuredClone(defaultState), ...JSON.parse(localStorage.getItem(userStateKey())) };
+    return normalizeState(JSON.parse(localStorage.getItem(userStateKey())));
   } catch {
     return structuredClone(defaultState);
   }
+}
+
+function normalizeState(rawState = {}) {
+  const merged = { ...structuredClone(defaultState), ...rawState };
+  const profile = merged.profile || {};
+  const looksLikeDemoProfile =
+    profile.name === "Valentina" &&
+    Number(profile.age) === 28 &&
+    Number(profile.weight) === 78 &&
+    Number(profile.height) === 165;
+
+  if (looksLikeDemoProfile) {
+    merged.profile = structuredClone(defaultState.profile);
+    merged.progress = [];
+  }
+
+  return merged;
 }
 
 function saveState() {
@@ -196,6 +213,24 @@ async function apiRequest(path, options = {}) {
 }
 
 function calcProfile(profile = state.profile) {
+  if (!hasBodyProfile(profile)) {
+    return {
+      bmi: 0,
+      bmr: 0,
+      maintenance: 0,
+      deficit: 0,
+      surplus: 0,
+      recomposition: 0,
+      goalCalories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      idealLow: 0,
+      idealHigh: 0,
+      pace: "Completa tu perfil para calcularlo"
+    };
+  }
+
   const heightM = profile.height / 100;
   const bmi = profile.weight / (heightM * heightM);
   const bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + (profile.sex === "hombre" ? 5 : -161);
@@ -229,6 +264,37 @@ function calcProfile(profile = state.profile) {
     idealHigh,
     pace: profile.goal === "perder grasa" ? "0,3 a 0,8 kg por semana" : profile.goal === "ganar masa muscular" ? "0,2 a 0,5 kg por semana" : "cambios lentos y medibles"
   };
+}
+
+function hasBodyProfile(profile = state.profile) {
+  return Boolean(
+    Number(profile.age) &&
+    Number(profile.weight) &&
+    Number(profile.height) &&
+    profile.sex &&
+    profile.experience &&
+    profile.goal &&
+    Number(profile.days) &&
+    Number(profile.minutes) &&
+    profile.place &&
+    profile.activity &&
+    Number(profile.meals) &&
+    profile.deficit
+  );
+}
+
+function completeProfilePrompt() {
+  return `
+    <div class="panel">
+      <div class="section-title">
+        <div>
+          <h2>Completa tu perfil fitness</h2>
+          <p class="subtle">Tu cuenta ya existe, pero todavía no hay datos corporales ni preferencias. La app no calculará calorías ni rutinas hasta que llenes esa información.</p>
+        </div>
+      </div>
+      <div class="notice">Ve a <strong>Mi perfil</strong> y registra edad, sexo, peso, estatura, objetivo, días de entrenamiento, actividad y comidas al día.</div>
+      <div class="btn-row"><button class="btn" data-goto="perfil">Completar perfil</button></div>
+    </div>`;
 }
 
 function macrosFor(foodItem, grams) {
@@ -351,6 +417,8 @@ function metric(label, value, note = "") {
 }
 
 function renderHome() {
+  if (!hasBodyProfile()) return completeProfilePrompt();
+
   const calc = calcProfile();
   const totals = diaryTotals();
   const routine = buildRoutine();
@@ -358,7 +426,7 @@ function renderHome() {
   return `
     <div class="stack">
       <div class="section-title">
-        <div><h2>Hola, ${state.profile.name}. Hoy vas paso a paso.</h2><p class="subtle">No necesitas hacerlo perfecto. Registra lo importante y ajusta con calma.</p></div>
+        <div><h2>Hola, ${state.profile.name || currentUser()?.name || "vamos paso a paso"}.</h2><p class="subtle">No necesitas hacerlo perfecto. Registra lo importante y ajusta con calma.</p></div>
         <span class="pill">${state.profile.goal}</span>
       </div>
       <div class="grid four">
@@ -414,6 +482,8 @@ function renderProfile() {
 }
 
 function renderCalories() {
+  if (!hasBodyProfile()) return completeProfilePrompt();
+
   const c = calcProfile();
   const meals = Number(state.profile.meals) || 4;
   return `
@@ -455,6 +525,8 @@ function renderCalories() {
 }
 
 function renderFoodDiary() {
+  if (!hasBodyProfile()) return completeProfilePrompt();
+
   const c = calcProfile();
   const totals = diaryTotals();
   return `
@@ -563,6 +635,8 @@ function renderMarket() {
 }
 
 function renderRoutine() {
+  if (!hasBodyProfile()) return completeProfilePrompt();
+
   const routine = buildRoutine();
   return `
     <div class="panel">
@@ -601,6 +675,8 @@ function pickExercises(pool, focus) {
 }
 
 function renderWorkout() {
+  if (!hasBodyProfile()) return completeProfilePrompt();
+
   const routine = buildRoutine();
   const day = routine.days[0];
   return `
@@ -671,6 +747,8 @@ function renderCardio() {
 }
 
 function renderProgress() {
+  if (!hasBodyProfile()) return completeProfilePrompt();
+
   return `
     <div class="panel">
       <div class="section-title"><div><h2>Mi progreso</h2><p class="subtle">Seguimiento semanal de peso, hábitos, energía, hambre, sueño, agua y ánimo.</p></div></div>
@@ -702,6 +780,8 @@ function progressMessage() {
 }
 
 function renderAdjustments() {
+  if (!hasBodyProfile()) return completeProfilePrompt();
+
   return `
     <div class="panel">
       <div class="section-title"><div><h2>Ajustar plan</h2><p class="subtle">Revisión semanal con reglas internas. Sin IA, sin servicios externos.</p></div></div>
@@ -773,9 +853,10 @@ function bindAuth() {
         auth.user = result.user;
         auth.currentEmail = result.user.email;
         auth.users[result.user.email] = result.user;
-        state = { ...structuredClone(defaultState), ...result.state };
+        state = normalizeState(result.state);
         saveAuth();
         localStorage.setItem(userStateKey(result.user.email), JSON.stringify(state));
+        saveState();
         render();
       } catch (error) {
         document.querySelector("#loginMsg").textContent = error.message;
@@ -803,7 +884,6 @@ function bindAuth() {
     if (apiBase()) {
       try {
         const initialState = structuredClone(defaultState);
-        initialState.profile.name = data.name;
         const result = await apiRequest("/auth/register", {
           method: "POST",
           body: JSON.stringify({ name: data.name, email: data.email, password: data.password, state: initialState })
@@ -812,7 +892,7 @@ function bindAuth() {
         auth.user = result.user;
         auth.currentEmail = result.user.email;
         auth.users[result.user.email] = result.user;
-        state = { ...structuredClone(defaultState), ...result.state };
+        state = normalizeState(result.state);
         saveAuth();
         localStorage.setItem(userStateKey(result.user.email), JSON.stringify(state));
         render();
@@ -828,7 +908,6 @@ function bindAuth() {
     auth.users[data.email] = { name: data.name, email: data.email, password: data.password, createdAt: new Date().toISOString() };
     auth.currentEmail = data.email;
     state = structuredClone(defaultState);
-    state.profile.name = data.name;
     saveAuth();
     saveState();
     render();
@@ -860,7 +939,8 @@ function input(name, label, value, type = "text") {
 }
 
 function select(name, label, options, value) {
-  return `<label>${label}<select name="${name}">${options.map(o => `<option ${o === value ? "selected" : ""}>${o}</option>`).join("")}</select></label>`;
+  const placeholder = value ? "" : `<option value="" selected>Selecciona...</option>`;
+  return `<label>${label}<select name="${name}">${placeholder}${options.map(o => `<option ${o === value ? "selected" : ""}>${o}</option>`).join("")}</select></label>`;
 }
 
 function foodSelect(name, label, value) {
@@ -1035,7 +1115,6 @@ function bindView() {
   if (resetBtn) resetBtn.addEventListener("click", () => {
     localStorage.removeItem(userStateKey());
     state = structuredClone(defaultState);
-    if (currentUser()) state.profile.name = currentUser().name;
     saveState();
     render();
   });
