@@ -4,6 +4,7 @@
 import { input, select, textarea } from "../components/ui.js";
 import { toast } from "../components/toast.js";
 import { hasBodyProfile } from "../utils/calc.js";
+import { ageOptions, heightOptions, weightOptions, daysOptions, minutesOptions, mealsOptions, budgetOptions } from "../data/profile-options.js";
 
 const STEPS = [
   { id: "personal", title: "Datos personales", subtitle: "Empecemos por lo básico para calcular tu metabolismo." },
@@ -48,13 +49,13 @@ function renderStep(step, p) {
       <div class="form-stack">
         ${input("name", "¿Cómo te llamas?", p.name, "text", { placeholder: "Tu nombre" })}
         <div class="form-grid form-grid-3">
-          ${input("age", "Edad", p.age, "number", { min: 12, max: 100 })}
+          ${select("age", "Edad", ageOptions, p.age ? String(p.age) : "")}
           ${select("sex", "Sexo", ["mujer", "hombre"], p.sex)}
-          ${input("height", "Estatura (cm)", p.height, "number", { min: 120, max: 230 })}
+          ${select("height", "Estatura (cm)", heightOptions, p.height ? String(p.height) : "")}
         </div>
         <div class="form-grid form-grid-2">
-          ${input("weight", "Peso actual (kg)", p.weight, "number", { min: 30, max: 250, step: 0.1 })}
-          ${input("targetWeight", "Peso objetivo (kg)", p.targetWeight, "number", { min: 30, max: 250, step: 0.1 })}
+          ${select("weight", "Peso actual (kg)", weightOptions, p.weight ? String(p.weight) : "")}
+          ${select("targetWeight", "Peso objetivo (kg)", weightOptions, p.targetWeight ? String(p.targetWeight) : "")}
         </div>
       </div>`;
 
@@ -68,8 +69,8 @@ function renderStep(step, p) {
     case 2: return `
       <div class="form-stack">
         <div class="form-grid form-grid-3">
-          ${input("days", "¿Cuántos días por semana?", p.days, "number", { min: 1, max: 7 })}
-          ${input("minutes", "¿Cuántos minutos por sesión?", p.minutes, "number", { min: 15, max: 180 })}
+          ${select("days", "¿Cuántos días por semana?", daysOptions, p.days ? String(p.days) : "")}
+          ${select("minutes", "¿Cuántos minutos por sesión?", minutesOptions, p.minutes ? String(p.minutes) : "")}
           ${select("place", "¿Dónde entrenas?", ["gimnasio completo", "gimnasio básico", "casa"], p.place)}
         </div>
         ${textarea("limitations", "¿Tienes lesiones o molestias? (opcional)", p.limitations, { rows: 2 })}
@@ -79,8 +80,8 @@ function renderStep(step, p) {
       <div class="form-stack">
         <div class="form-grid form-grid-3">
           ${select("activity", "¿Qué tan activo eres en el día?", ["sedentaria", "ligera", "moderada", "alta"], p.activity)}
-          ${input("meals", "¿Cuántas comidas al día?", p.meals, "number", { min: 2, max: 8 })}
-          ${input("budget", "Presupuesto (opcional)", p.budget)}
+          ${select("meals", "¿Cuántas comidas al día?", mealsOptions, p.meals ? String(p.meals) : "")}
+          ${select("budget", "Presupuesto", budgetOptions, p.budget)}
         </div>
         ${textarea("avoid", "¿Qué alimentos no consumes? (opcional)", p.avoid, { rows: 2 })}
         ${textarea("preferences", "¿Preferencias alimentarias? (opcional)", p.preferences, { rows: 2 })}

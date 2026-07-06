@@ -2,6 +2,7 @@
 import { input, select, textarea, sectionTitle } from "../components/ui.js";
 import { toast } from "../components/toast.js";
 import { hasBodyProfile } from "../utils/calc.js";
+import { ageOptions, heightOptions, weightOptions, daysOptions, minutesOptions, mealsOptions, budgetOptions } from "../data/profile-options.js";
 
 export function render(state) {
   const p = state.profile;
@@ -13,11 +14,11 @@ export function render(state) {
           <h3 class="form-section-title">Datos personales</h3>
           <div class="form-grid-3">
             ${input("name", "Nombre", p.name)}
-            ${input("age", "Edad", p.age, "number", { min: 12, max: 100 })}
+            ${select("age", "Edad", ageOptions, p.age ? String(p.age) : "")}
             ${select("sex", "Sexo", ["mujer", "hombre"], p.sex)}
-            ${input("weight", "Peso actual (kg)", p.weight, "number", { min: 30, max: 250, step: 0.1 })}
-            ${input("height", "Estatura (cm)", p.height, "number", { min: 120, max: 230 })}
-            ${input("targetWeight", "Peso objetivo (kg)", p.targetWeight, "number", { min: 30, max: 250, step: 0.1 })}
+            ${select("weight", "Peso actual (kg)", weightOptions, p.weight ? String(p.weight) : "")}
+            ${select("height", "Estatura (cm)", heightOptions, p.height ? String(p.height) : "")}
+            ${select("targetWeight", "Peso objetivo (kg)", weightOptions, p.targetWeight ? String(p.targetWeight) : "")}
           </div>
         </div>
 
@@ -33,8 +34,8 @@ export function render(state) {
         <div class="form-section">
           <h3 class="form-section-title">Entrenamiento</h3>
           <div class="form-grid-3">
-            ${input("days", "Días por semana", p.days, "number", { min: 1, max: 7 })}
-            ${input("minutes", "Minutos por sesión", p.minutes, "number", { min: 15, max: 180 })}
+            ${select("days", "Días por semana", daysOptions, p.days ? String(p.days) : "")}
+            ${select("minutes", "Minutos por sesión", minutesOptions, p.minutes ? String(p.minutes) : "")}
             ${select("place", "Lugar", ["gimnasio completo", "gimnasio básico", "casa"], p.place)}
           </div>
         </div>
@@ -43,8 +44,8 @@ export function render(state) {
           <h3 class="form-section-title">Estilo de vida</h3>
           <div class="form-grid-3">
             ${select("activity", "Actividad diaria", ["sedentaria", "ligera", "moderada", "alta"], p.activity)}
-            ${input("meals", "Comidas al día", p.meals, "number", { min: 2, max: 8 })}
-            ${input("budget", "Presupuesto", p.budget)}
+            ${select("meals", "Comidas al día", mealsOptions, p.meals ? String(p.meals) : "")}
+            ${select("budget", "Presupuesto", budgetOptions, p.budget)}
           </div>
         </div>
 
@@ -73,7 +74,7 @@ export function bind(ctx) {
     ["age", "weight", "height", "days", "minutes", "meals", "targetWeight"].forEach(k => {
       data[k] = Number(data[k]);
     });
-    // Validación mínima
+    // Validación mínima (safety net, los selects ya limitan las opciones)
     if (data.age && (data.age < 12 || data.age > 100)) {
       toast.error("La edad debe estar entre 12 y 100 años");
       return;
