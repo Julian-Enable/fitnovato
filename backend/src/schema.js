@@ -1,12 +1,33 @@
 import { query } from "./db.js";
 
-let schemaPromise;
+let schemaPromise = null;
 
 export function ensureSchema() {
-  if (!schemaPromise) {
-    schemaPromise = createSchema();
+  // Si la promesa anterior falló, permitimos reintentar creando una nueva.
+  // Solo se cachea si realmente se resolvió con éxito.
+  if (!schemaPromise || isRejectedPromise(schemaPromise)) {
+    schemaPromise = createSchema().catch(error => {
+      // Marcamos la promesa como fallida y la guardamos para que `isRejectedPromise`
+      // pueda detectarla; lanzamos para que el caller la vea.
+      schemaPromise = makeRejectedMarker(error);
+      throw error;
+    });
   }
   return schemaPromise;
+}
+
+// Helpers para detectar promesas rechazadas sin await (que dispararía un
+// UnhandledPromiseRejection en algunos runtimes).
+const REJECTED_TAG = Symbol("rejected");
+function makeRejectedMarker(error) {
+  const p = Promise.reject(error);
+  p[REJECTED_TAG] = true;
+  // Evitamos UnhandledPromiseRejectionWarning en Node.
+  p.catch(() => {});
+  return p;
+}
+function isRejectedPromise(p) {
+  return Boolean(p && p[REJECTED_TAG]);
 }
 
 async function createSchema() {

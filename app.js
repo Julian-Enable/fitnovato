@@ -323,6 +323,16 @@ function fmt(num, unit = "") {
   return `${Math.round(num).toLocaleString("es-CO")}${unit}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[ch]));
+}
+
 function one(num) {
   return Number(num).toLocaleString("es-CO", { maximumFractionDigits: 1 });
 }
@@ -331,7 +341,7 @@ function renderNav() {
   const nav = document.querySelector("#nav");
   const accountBox = document.querySelector("#accountBox");
   const user = currentUser();
-  accountBox.innerHTML = user ? `<div class="account-box"><small>Cuenta activa</small><strong>${user.name}</strong><small>${user.email}</small></div>` : "";
+  accountBox.innerHTML = user ? `<div class="account-box"><small>Cuenta activa</small><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.email)}</small></div>` : "";
   if (!user) {
     nav.innerHTML = "";
     return;
@@ -426,8 +436,8 @@ function renderHome() {
   return `
     <div class="stack">
       <div class="section-title">
-        <div><h2>Hola, ${state.profile.name || currentUser()?.name || "vamos paso a paso"}.</h2><p class="subtle">No necesitas hacerlo perfecto. Registra lo importante y ajusta con calma.</p></div>
-        <span class="pill">${state.profile.goal}</span>
+        <div><h2>Hola, ${escapeHtml(state.profile.name || currentUser()?.name || "vamos paso a paso")}.</h2><p class="subtle">No necesitas hacerlo perfecto. Registra lo importante y ajusta con calma.</p></div>
+        <span class="pill">${escapeHtml(state.profile.goal)}</span>
       </div>
       <div class="grid four">
         ${metric("Calorías objetivo", fmt(calc.goalCalories, " kcal"), "Estimado inicial")}
@@ -566,7 +576,7 @@ function renderFoodDiary() {
 
 function tableDiary() {
   return `<table><thead><tr><th>Comida</th><th>Alimento</th><th>Cantidad</th><th>Kcal</th><th>P/C/G</th></tr></thead><tbody>
-    ${state.diary.map(i => `<tr><td>${i.meal}</td><td>${i.name}</td><td>${i.grams} g</td><td>${fmt(i.macros.kcal)}</td><td>${fmt(i.macros.protein)} / ${fmt(i.macros.carbs)} / ${fmt(i.macros.fat)}</td></tr>`).join("")}
+    ${state.diary.map(i => `<tr><td>${escapeHtml(i.meal)}</td><td>${escapeHtml(i.name)}</td><td>${i.grams} g</td><td>${fmt(i.macros.kcal)}</td><td>${fmt(i.macros.protein)} / ${fmt(i.macros.carbs)} / ${fmt(i.macros.fat)}</td></tr>`).join("")}
   </tbody></table>`;
 }
 
@@ -602,7 +612,7 @@ function renderPlateBuilder() {
       </form>
       <div id="plateResult" class="notice"></div>
       <h2>Platos guardados</h2>
-      ${state.plates.length ? `<div class="grid three">${state.plates.map(p => `<article class="item"><strong>${p.name}</strong><p>${fmt(p.macros.kcal, " kcal")} · ${fmt(p.macros.protein, " g proteína")}</p></article>`).join("")}</div>` : `<div class="empty">Todavía no has guardado platos.</div>`}
+      ${state.plates.length ? `<div class="grid three">${state.plates.map(p => `<article class="item"><strong>${escapeHtml(p.name)}</strong><p>${fmt(p.macros.kcal, " kcal")} · ${fmt(p.macros.protein, " g proteína")}</p></article>`).join("")}</div>` : `<div class="empty">Todavía no has guardado platos.</div>`}
     </div>`;
 }
 
@@ -617,13 +627,14 @@ function renderRecipes() {
         <label>Preparación<textarea name="steps">Cocina el pollo con verduras, acompaña con papa y arroz medido.</textarea></label>
         <div class="btn-row"><button class="btn" type="submit">Guardar receta</button></div>
       </form>
-      ${state.recipes.length ? `<table><thead><tr><th>Receta</th><th>Porciones</th><th>Estimado</th><th>Preparación</th></tr></thead><tbody>${state.recipes.map(r => `<tr><td>${r.name}</td><td>${r.servings}</td><td>${fmt(r.perServing.kcal, " kcal")} por porción</td><td>${r.steps}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Crea tu primera receta.</div>`}
+      ${state.recipes.length ? `<table><thead><tr><th>Receta</th><th>Porciones</th><th>Estimado</th><th>Preparación</th></tr></thead><tbody>${state.recipes.map(r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.servings}</td><td>${fmt(r.perServing.kcal, " kcal")} por porción</td><td>${escapeHtml(r.steps)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Crea tu primera receta.</div>`}
     </div>`;
 }
 
 function renderMarket() {
   const days = [1, 3, 5, 7];
-  const economical = state.profile.budget.toLowerCase().includes("bajo") || state.profile.budget.toLowerCase().includes("econ");
+  const budget = String(state.profile.budget || "").toLowerCase();
+  const economical = budget.includes("bajo") || budget.includes("econ");
   const picks = foods.filter(f => economical ? f.tags.cheap : ["Proteínas", "Carbohidratos", "Grasas", "Verduras", "Frutas", "Lácteos"].includes(f.category)).slice(0, 22);
   const grouped = groupBy(picks, f => marketCategory(f.category));
   return `
@@ -705,7 +716,7 @@ function renderWorkout() {
 }
 
 function renderWorkoutHistory() {
-  return `<table><thead><tr><th>Fecha</th><th>Resumen</th><th>Recomendación</th></tr></thead><tbody>${state.workoutLogs.slice(-5).reverse().map(log => `<tr><td>${log.date}</td><td>${log.summary}</td><td>${log.recommendation}</td></tr>`).join("")}</tbody></table>`;
+  return `<table><thead><tr><th>Fecha</th><th>Resumen</th><th>Recomendación</th></tr></thead><tbody>${state.workoutLogs.slice(-5).reverse().map(log => `<tr><td>${escapeHtml(log.date)}</td><td>${escapeHtml(log.summary)}</td><td>${escapeHtml(log.recommendation)}</td></tr>`).join("")}</tbody></table>`;
 }
 
 function progressionAdvice(entries) {
@@ -742,7 +753,7 @@ function renderCardio() {
         ${select("feeling", "Sensación", ["Muy fácil", "Bien", "Difícil", "Muy difícil"], "Bien")}
         <div class="btn-row"><button class="btn" type="submit">Guardar cardio</button></div>
       </form>
-      ${state.cardio.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Tiempo</th><th>Sensación</th></tr></thead><tbody>${state.cardio.slice(-6).reverse().map(c => `<tr><td>${c.date}</td><td>${c.type}</td><td>${c.time} min</td><td>${c.feeling}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin registros de cardio todavía.</div>`}
+      ${state.cardio.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Tiempo</th><th>Sensación</th></tr></thead><tbody>${state.cardio.slice(-6).reverse().map(c => `<tr><td>${escapeHtml(c.date)}</td><td>${escapeHtml(c.type)}</td><td>${escapeHtml(c.time)} min</td><td>${escapeHtml(c.feeling)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin registros de cardio todavía.</div>`}
     </div>`;
 }
 
@@ -765,7 +776,7 @@ function renderProgress() {
         <div class="btn-row"><button class="btn" type="submit">Registrar semana</button></div>
       </form>
       <div class="notice">${progressMessage()}</div>
-      ${state.progress.length ? `<table><thead><tr><th>Semana</th><th>Peso</th><th>Comida</th><th>Entreno</th><th>Notas</th></tr></thead><tbody>${state.progress.map(p => `<tr><td>${p.week}</td><td>${one(p.weight)} kg</td><td>${p.food}</td><td>${p.training}</td><td>Energía ${p.energy}, hambre ${p.hunger}, sueño ${p.sleep}</td></tr>`).join("")}</tbody></table>` : ""}
+      ${state.progress.length ? `<table><thead><tr><th>Semana</th><th>Peso</th><th>Comida</th><th>Entreno</th><th>Notas</th></tr></thead><tbody>${state.progress.map(p => `<tr><td>${p.week}</td><td>${one(p.weight)} kg</td><td>${escapeHtml(p.food)}</td><td>${escapeHtml(p.training)}</td><td>Energía ${escapeHtml(p.energy)}, hambre ${escapeHtml(p.hunger)}, sueño ${escapeHtml(p.sleep)}</td></tr>`).join("")}</tbody></table>` : ""}
     </div>`;
 }
 
@@ -819,8 +830,8 @@ function renderConfig() {
   return `
     <div class="panel">
       <h2>Configuración</h2>
-      <p class="subtle">Cuenta activa: <strong>${user.email}</strong>. ${apiBase() ? "La app sincroniza esta cuenta con el backend configurado." : "La app guarda la información de esta cuenta localmente en este navegador."} No usa IA, escáneres, pagos ni APIs externas de alimentos.</p>
-      <div class="notice">Backend configurado: <strong>${apiBase() || "ninguno"}</strong>. Para producción usa la URL pública de Railway.</div>
+      <p class="subtle">Cuenta activa: <strong>${escapeHtml(user.email)}</strong>. ${apiBase() ? "La app sincroniza esta cuenta con el backend configurado." : "La app guarda la información de esta cuenta localmente en este navegador."} No usa IA, escáneres, pagos ni APIs externas de alimentos.</p>
+      <div class="notice">Backend configurado: <strong>${escapeHtml(apiBase() || "ninguno")}</strong>. Para producción usa la URL pública de Railway.</div>
       <form id="apiConfigForm" class="grid two">
         ${input("apiUrl", "URL API Railway", apiBase(), "url")}
         <div class="btn-row"><button class="btn secondary" type="submit">Guardar URL</button></div>
@@ -935,12 +946,12 @@ function normalizeAuthData(formData) {
 }
 
 function input(name, label, value, type = "text") {
-  return `<label>${label}<input name="${name}" type="${type}" value="${value ?? ""}" /></label>`;
+  return `<label>${label}<input name="${name}" type="${type}" value="${escapeHtml(value)}" /></label>`;
 }
 
 function select(name, label, options, value) {
   const placeholder = value ? "" : `<option value="" selected>Selecciona...</option>`;
-  return `<label>${label}<select name="${name}">${placeholder}${options.map(o => `<option ${o === value ? "selected" : ""}>${o}</option>`).join("")}</select></label>`;
+  return `<label>${label}<select name="${name}">${placeholder}${options.map(o => `<option ${o === value ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}</select></label>`;
 }
 
 function foodSelect(name, label, value) {
@@ -1129,12 +1140,21 @@ function calculatePlate(form) {
 }
 
 function estimateRecipe(text) {
-  const lower = text.toLowerCase();
+  const lower = String(text || "").toLowerCase();
+  if (!lower) return emptyMacros();
   return foods.reduce((sum, f) => {
-    const first = f.name.toLowerCase().split(" ")[0];
-    if (!lower.includes(first)) return sum;
-    const match = lower.match(new RegExp(`${first}[^0-9]*(\\d+)\\s*g`));
-    const grams = match ? Number(match[1]) : 100;
+    // Tomamos las dos primeras palabras del nombre del alimento para reducir
+    // falsos positivos (ej. "atún" en "contundente" no debería matchear).
+    const words = f.name.toLowerCase().split(/\s+/);
+    const needle = words.slice(0, 2).join("\\s+");
+    // Buscamos el nombre seguido (con posibles caracteres entre medio) de un
+    // número y la unidad "g" o "gr". Aceptamos también "100 g", "100g", "100gr",
+    // "100 gramos", "100 gr".
+    const re = new RegExp(`${needle}[^0-9]{0,30}(\\d{1,5})\\s*(?:g|gr|gramos)\\b`, "i");
+    const match = lower.match(re);
+    if (!match) return sum;
+    const grams = Number(match[1]);
+    if (!Number.isFinite(grams) || grams <= 0 || grams > 5000) return sum;
     return addMacros(sum, macrosFor(f, grams));
   }, emptyMacros());
 }
