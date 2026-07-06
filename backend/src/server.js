@@ -4,11 +4,14 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { query } from "./db.js";
+import { ensureSchema } from "./schema.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
 const jwtSecret = process.env.JWT_SECRET || "dev-secret-change-me";
 const frontendOrigin = process.env.FRONTEND_ORIGIN || "*";
+let dbReady = false;
+let dbError = null;
 
 app.use(cors({
   origin: frontendOrigin === "*" ? true : frontendOrigin.split(",").map(origin => origin.trim()),
@@ -38,10 +41,13 @@ function requireAuth(req, res, next) {
 }
 
 app.get("/health", (req, res) => {
-  res.json({ ok: true, name: "FitNovato API" });
+  res.json({ ok: true, name: "FitNovato API", dbReady, dbError: dbError?.message || null });
 });
 
 app.post("/auth/register", async (req, res) => {
+  await requireDatabase(res);
+  if (res.headersSent) return;
+
   const name = String(req.body.name || "").trim();
   const email = String(req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
@@ -72,6 +78,9 @@ app.post("/auth/register", async (req, res) => {
 });
 
 app.post("/auth/login", async (req, res) => {
+  await requireDatabase(res);
+  if (res.headersSent) return;
+
   const email = String(req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
   const result = await query("select id, name, email, password_hash, created_at from users where email = $1", [email]);
@@ -86,6 +95,9 @@ app.post("/auth/login", async (req, res) => {
 });
 
 app.get("/me/state", requireAuth, async (req, res) => {
+  await requireDatabase(res);
+  if (res.headersSent) return;
+
   const result = await query(
     `select u.id, u.name, u.email, u.created_at, coalesce(s.data, '{}'::jsonb) as data
      from users u
@@ -99,6 +111,9 @@ app.get("/me/state", requireAuth, async (req, res) => {
 });
 
 app.put("/me/state", requireAuth, async (req, res) => {
+  await requireDatabase(res);
+  if (res.headersSent) return;
+
   const data = req.body.state || {};
   await query(
     `insert into user_states (user_id, data, updated_at)
@@ -113,3 +128,26 @@ app.put("/me/state", requireAuth, async (req, res) => {
 app.listen(port, () => {
   console.log(`FitNovato API listening on ${port}`);
 });
+
+ensureSchema()
+  .then(() => {
+    dbReady = true;
+    console.log("Database schema ready");
+  })
+  .catch(error => {
+    dbError = error;
+    console.error("Database schema failed", error);
+  });
+
+async function requireDatabase(res) {
+  try {
+    await ensureSchema();
+    dbReady = true;
+  } catch (error) {
+    dbError = error;
+    console.error(error);
+    res.status(503).json({
+      error: "Base de datos no disponible. Revisa DATABASE_URL y el servicio PostgreSQL en Railway."
+    });
+  }
+}
