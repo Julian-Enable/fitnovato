@@ -28,14 +28,18 @@ Luego haz commit y push para que Vercel actualice el frontend.
 ## Deploy del backend en Railway
 
 1. En Railway crea un proyecto nuevo desde este repositorio.
-2. Elige el servicio desde la carpeta `backend`.
+2. Opción recomendada: en `Settings > Source`, configura `Root Directory` como `backend`.
+3. Opción alternativa: deja la raíz del repo. El `package.json`, `railway.json` y `Procfile` de la raíz redirigen Railway al backend.
 3. Agrega PostgreSQL al proyecto.
 4. En variables del servicio backend configura:
    - `DATABASE_URL`: Railway la agrega desde PostgreSQL.
    - `JWT_SECRET`: una cadena larga y privada.
    - `FRONTEND_ORIGIN`: la URL de Vercel, por ejemplo `https://fitnovato.vercel.app`.
-5. Start command: Railway usará `npm start`.
-6. El backend corre migraciones y luego inicia la API.
+5. Start command si usas raíz: `npm start`.
+6. Start command si usas `backend` como root: `npm start`.
+7. El backend corre migraciones y luego inicia la API.
+
+Si Railway detecta Caddy o `staticfile`, está apuntando al frontend estático. Cambia el Root Directory a `backend` o redeploya con la configuración de raíz incluida en este repo.
 
 Endpoints principales:
 
