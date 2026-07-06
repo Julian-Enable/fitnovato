@@ -87,9 +87,13 @@ export function bind(ctx) {
         onSuccess(normalizeBackendState(result.state));
       } else {
         const user = auth.users[data.email];
-        if (!user || user.password !== data.password) {
+        if (!user || !(await verifyLocalPassword(user, data.password))) {
           showMsg("#loginMsg", "Correo o contraseña incorrectos");
           return;
+        }
+        if (user.password) {
+          user.passwordHash = await hashLocalPassword(data.email, data.password);
+          delete user.password;
         }
         auth.currentEmail = data.email;
         api.saveAuth(auth);
@@ -132,7 +136,7 @@ export function bind(ctx) {
         auth.users[data.email] = {
           name: data.name,
           email: data.email,
-          password: data.password,
+          passwordHash: await hashLocalPassword(data.email, data.password),
           createdAt: new Date().toISOString()
         };
         auth.currentEmail = data.email;
@@ -162,4 +166,17 @@ function normalizeAuth(formData) {
 
 function normalizeBackendState(remoteState) {
   return remoteState && typeof remoteState === "object" ? remoteState : {};
+}
+
+async function verifyLocalPassword(user, password) {
+  if (user.passwordHash) {
+    return user.passwordHash === await hashLocalPassword(user.email, password);
+  }
+  return user.password === password;
+}
+
+async function hashLocalPassword(email, password) {
+  const bytes = new TextEncoder().encode(`${email.toLowerCase()}:${password}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
 }

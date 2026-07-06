@@ -1,18 +1,21 @@
 // Vista de inicio: dashboard con métricas clave y accesos rápidos.
 import { metric, card, sectionTitle, button } from "../components/ui.js";
 import { fmt, one, escapeHtml } from "../utils/format.js";
-import { calcProfile, diaryTotals, hasBodyProfile, buildRoutine } from "../utils/calc.js";
+import { calcProfile, diaryTotals, hasBodyProfile, buildRoutine, cardioCalories, todayISO } from "../utils/calc.js";
 import { exercises as allExercises } from "../data/exercises.js";
 
 export function render(state, user) {
   if (!hasBodyProfile(state.profile)) {
     return completeProfilePrompt();
   }
+  const selectedDate = state.selectedDiaryDate || todayISO();
   const calc = calcProfile(state.profile);
-  const totals = diaryTotals(state.diary);
+  const totals = diaryTotals(state.diary, selectedDate);
+  const dayCardio = cardioCalories(state.cardio, selectedDate);
+  const netCalories = Math.max(0, totals.kcal - dayCardio);
   const routine = buildRoutine(state.profile, allExercises);
-  const remaining = Math.max(0, calc.goalCalories - totals.kcal);
-  const caloriePercent = Math.min(100, Math.round((totals.kcal / calc.goalCalories) * 100));
+  const remaining = Math.max(0, calc.goalCalories - netCalories);
+  const caloriePercent = Math.min(100, Math.round((netCalories / calc.goalCalories) * 100));
   const proteinPercent = Math.min(100, Math.round((totals.protein / calc.protein) * 100));
   const name = state.profile.name || user?.name || "vamos paso a paso";
 
@@ -24,9 +27,9 @@ export function render(state, user) {
         <div class="hero-stats">
           <div class="hero-stat-main">
             <span class="metric-label">Calorías hoy</span>
-            <strong class="hero-value">${fmt(totals.kcal)}<small> / ${fmt(calc.goalCalories)} kcal</small></strong>
+            <strong class="hero-value">${fmt(netCalories)}<small> / ${fmt(calc.goalCalories)} kcal</small></strong>
             <div class="progress"><div class="progress-fill" style="width: ${caloriePercent}%"></div></div>
-            <span class="metric-note">${fmt(remaining)} restantes</span>
+            <span class="metric-note">${fmt(remaining)} restantes · cardio ${fmt(dayCardio)} kcal</span>
           </div>
           <div class="hero-stat-side">
             <span class="metric-label">Proteína</span>

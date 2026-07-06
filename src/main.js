@@ -2,7 +2,7 @@
 // Arquitectura modular con Vite. Estética Apple Health.
 
 import "./styles.css";
-import { loadAuth, saveAuth, loadState, saveState, currentUser, userStateKey, defaultState } from "./state/store.js";
+import { loadAuth, saveAuth, loadState, saveState, currentUser, userStateKey, defaultState, normalizeState } from "./state/store.js";
 import { apiRequest, getApiBase } from "./api/client.js";
 import { renderTopBar, renderMobileTabs, bindNav } from "./components/nav.js";
 import { toast } from "./components/toast.js";
@@ -63,6 +63,7 @@ const ctx = {
   saveAuth: () => saveAuth(auth),
   apiRequest,
   render: renderApp,
+  startTour: startFullTour,
   onOnboardingComplete: startFullTour,
   logout: () => {
     if (tourActive) { stopTour(); tourActive = false; }
@@ -90,7 +91,7 @@ function renderApp() {
       defaultState,
       onSuccess: async (overrideState) => {
         if (overrideState && typeof overrideState === "object") {
-          state = { ...structuredClone(defaultState), ...overrideState };
+          state = normalizeState(overrideState);
         } else {
           state = loadState(auth.currentEmail);
         }

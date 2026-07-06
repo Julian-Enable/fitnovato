@@ -1,18 +1,25 @@
-// Vista de entrenamiento: registrar series, reps, peso, sensación.
 import { input, select, sectionTitle, emptyState } from "../components/ui.js";
 import { escapeHtml } from "../utils/format.js";
-import { buildRoutine, hasBodyProfile, progressionAdvice } from "../utils/calc.js";
+import { buildRoutine, hasBodyProfile, progressionAdvice, todayISO } from "../utils/calc.js";
 import { exercises as allExercises } from "../data/exercises.js";
 import { toast } from "../components/toast.js";
 
 export function render(state) {
   if (!hasBodyProfile(state.profile)) return completeProfilePrompt();
   const routine = buildRoutine(state.profile, allExercises);
-  const day = routine.days[0];
+  const selectedDay = Math.min(Math.max(Number(state.selectedWorkoutDay) || 1, 1), routine.days.length);
+  const day = routine.days[selectedDay - 1];
 
   return `
     <div class="view-stack">
-      ${sectionTitle("Mi entrenamiento", "Registra series, repeticiones, peso y sensación. La recomendación sale de reglas de doble progresión.")}
+      ${sectionTitle("Mi entrenamiento", "Registra series, repeticiones, peso y sensacion. La recomendacion usa doble progresion.")}
+
+      <section class="card">
+        <div class="card-body form-row">
+          ${select("workoutDay", "Dia de rutina", routine.days.map(d => `Dia ${d.day}: ${d.focus}`), `Dia ${day.day}: ${day.focus}`)}
+          ${input("workoutDate", "Fecha", todayISO(), "date")}
+        </div>
+      </section>
 
       <form id="workoutForm" class="view-stack">
         ${day.exercises.map((e, idx) => `
@@ -24,9 +31,9 @@ export function render(state) {
             <div class="card-body">
               <div class="grid grid-4">
                 ${input(`weight-${idx}`, "Peso usado (kg)", 0, "number", { min: 0, max: 500, step: 0.5 })}
-                ${input(`reps-${idx}`, "Reps por serie", "12,12,10")}
+                ${input(`reps-${idx}`, "Reps por serie", e.reps)}
                 ${input(`sets-${idx}`, "Series completadas", e.sets, "number", { min: 1, max: 10 })}
-                ${select(`feeling-${idx}`, "Sensación", ["Muy fácil", "Bien", "Difícil", "Muy difícil", "Sentí dolor"], "Bien")}
+                ${select(`feeling-${idx}`, "Sensacion", ["Muy facil", "Bien", "Dificil", "Muy dificil", "Senti dolor"], "Bien")}
               </div>
               ${input(`note-${idx}`, "Nota personal", "")}
             </div>
@@ -35,7 +42,7 @@ export function render(state) {
         <section class="card">
           <div class="card-body">
             <div class="grid grid-2">
-              ${input("duration", "Duración (min)", state.profile.minutes, "number", { min: 5, max: 240 })}
+              ${input("duration", "Duracion (min)", state.profile.minutes, "number", { min: 5, max: 240 })}
               ${input("cardio", "Cardio realizado", "15 min caminadora")}
             </div>
             <div class="form-actions">
@@ -49,8 +56,8 @@ export function render(state) {
         <header class="card-head"><h2>Historial reciente</h2></header>
         <div class="card-body">
           ${state.workoutLogs.length
-            ? `<table class="data-table"><thead><tr><th>Fecha</th><th>Resumen</th><th>Recomendación</th></tr></thead><tbody>${state.workoutLogs.slice(-5).reverse().map(log => `<tr><td>${escapeHtml(log.date)}</td><td>${escapeHtml(log.summary)}</td><td>${escapeHtml(log.recommendation)}</td></tr>`).join("")}</tbody></table>`
-            : emptyState("Cuando finalices un entrenamiento verás aquí el resumen.")}
+            ? `<table class="data-table"><thead><tr><th>Fecha</th><th>Resumen</th><th>Recomendacion</th><th></th></tr></thead><tbody>${state.workoutLogs.slice(-8).reverse().map(log => `<tr><td>${escapeHtml(log.dateISO || log.date)}</td><td>${escapeHtml(log.summary)}</td><td>${escapeHtml(log.recommendation)}</td><td><button class="btn btn-ghost btn-sm" data-delete-workout="${escapeHtml(log.id)}">Eliminar</button></td></tr>`).join("")}</tbody></table>`
+            : emptyState("Cuando finalices un entrenamiento veras aqui el resumen.")}
         </div>
       </section>
     </div>`;
@@ -63,27 +70,52 @@ function completeProfilePrompt() {
 export function bind(ctx) {
   const form = document.querySelector("#workoutForm");
   if (!form) return;
+
+  document.querySelector("[name='workoutDay']")?.addEventListener("change", e => {
+    const dayNumber = Number(String(e.target.value).match(/\d+/)?.[0]) || 1;
+    ctx.state.selectedWorkoutDay = dayNumber;
+    ctx.save();
+    ctx.render();
+  });
+
   form.addEventListener("submit", e => {
     e.preventDefault();
-    const routine = buildRoutine(ctx.state.profile, allExercises).days[0];
-    const entries = routine.exercises.map((e, idx) => ({
-      exercise: e.name,
+    const fullRoutine = buildRoutine(ctx.state.profile, allExercises);
+    const selectedDay = Math.min(Math.max(Number(ctx.state.selectedWorkoutDay) || 1, 1), fullRoutine.days.length);
+    const routine = fullRoutine.days[selectedDay - 1];
+    const workoutDate = document.querySelector("[name='workoutDate']")?.value || todayISO();
+    const entries = routine.exercises.map((ex, idx) => ({
+      exercise: ex.name,
+      targetReps: ex.reps,
       weight: Number(form.elements[`weight-${idx}`].value),
       reps: form.elements[`reps-${idx}`].value,
       sets: Number(form.elements[`sets-${idx}`].value),
       feeling: form.elements[`feeling-${idx}`].value,
       note: form.elements[`note-${idx}`].value
     }));
-    const totalSets = entries.reduce((s, e) => s + e.sets, 0);
-    const totalReps = entries.reduce((s, e) => s + String(e.reps).split(/[,\-]/).map(Number).filter(Number.isFinite).reduce((a, b) => a + (b || 0), 0), 0);
+    const totalSets = entries.reduce((s, entry) => s + entry.sets, 0);
+    const totalReps = entries.reduce((s, entry) => s + String(entry.reps).split(/[,\-]/).map(Number).filter(Number.isFinite).reduce((a, b) => a + (b || 0), 0), 0);
     const recommendation = progressionAdvice(entries);
     ctx.state.workoutLogs.push({
-      date: new Date().toLocaleDateString("es-CO"),
-      entries, recommendation,
-      summary: `${entries.length} ejercicios, ${totalSets} series, ${totalReps} repeticiones, ${form.elements.cardio.value}.`
+      id: crypto.randomUUID(),
+      dateISO: workoutDate,
+      date: new Date(`${workoutDate}T00:00:00`).toLocaleDateString("es-CO"),
+      routineDay: selectedDay,
+      entries,
+      recommendation,
+      summary: `Dia ${selectedDay}: ${entries.length} ejercicios, ${totalSets} series, ${totalReps} repeticiones, ${form.elements.cardio.value}.`
     });
     ctx.save();
     toast.success("Entrenamiento guardado");
     ctx.render();
+  });
+
+  document.querySelectorAll("[data-delete-workout]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      ctx.state.workoutLogs = ctx.state.workoutLogs.filter(item => item.id !== btn.dataset.deleteWorkout);
+      ctx.save();
+      toast.info("Entrenamiento eliminado");
+      ctx.render();
+    });
   });
 }

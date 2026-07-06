@@ -24,8 +24,20 @@ export function macrosFor(foodItem, grams) {
   };
 }
 
-export function diaryTotals(diary = []) {
-  return diary.reduce((sum, item) => addMacros(sum, item.macros), emptyMacros());
+export function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function entriesForDate(entries = [], dateISO = todayISO()) {
+  return entries.filter(item => (item.dateISO || item.date) === dateISO);
+}
+
+export function diaryTotals(diary = [], dateISO = todayISO()) {
+  return entriesForDate(diary, dateISO).reduce((sum, item) => addMacros(sum, item.macros), emptyMacros());
+}
+
+export function cardioCalories(cardio = [], dateISO = todayISO()) {
+  return entriesForDate(cardio, dateISO).reduce((sum, item) => sum + (Number(item.calories) || 0), 0);
 }
 
 export function hasBodyProfile(profile = {}) {
@@ -93,9 +105,14 @@ export function calcProfile(profile = {}) {
  */
 export function buildRoutine(profile = {}, exercises = []) {
   const home = profile.place === "casa";
+  const avoidMuscles = musclesToAvoid(profile.limitations);
+  const avoidNames = exerciseNamesToAvoid(profile.limitations);
   const pool = exercises
     .filter(e => (home ? e.place !== "gym" : e.place !== "casa"))
-    .filter(e => e.level === "principiante" || profile.experience !== "principiante");
+    .filter(e => e.level === "principiante" || profile.experience !== "principiante")
+    .filter(e => !avoidMuscles.has(e.muscle))
+    .filter(e => !(e.secondary || []).some(m => avoidMuscles.has(m)))
+    .filter(e => !avoidNames.has(e.name));
   const days = Math.max(2, Math.min(5, Number(profile.days) || 3));
   const goal = profile.goal;
   const name = goal === "ganar masa muscular"
@@ -121,6 +138,27 @@ export function buildRoutine(profile = {}, exercises = []) {
   };
 }
 
+function musclesToAvoid(limitations = "") {
+  const text = String(limitations).toLowerCase();
+  const map = [
+    [["rodilla", "menisco", "ligamento"], ["Pierna"]],
+    [["lumbar", "espalda baja", "ciatica", "ciática"], ["Glúteo"]],
+    [["hombro", "manguito"], ["Hombro", "Pecho"]],
+    [["codo"], ["Bíceps", "Tríceps"]],
+    [["muñeca", "muneca"], ["Pecho", "Bíceps", "Tríceps"]]
+  ];
+  return new Set(map.flatMap(([keys, muscles]) => keys.some(k => text.includes(k)) ? muscles : []));
+}
+
+function exerciseNamesToAvoid(limitations = "") {
+  const text = String(limitations).toLowerCase();
+  const names = [];
+  if (/(rodilla|menisco|ligamento)/.test(text)) names.push("Sentadilla goblet", "Prensa", "Zancadas");
+  if (/(lumbar|espalda baja|ciatica|ciática)/.test(text)) names.push("Peso muerto rumano");
+  if (/(hombro|manguito)/.test(text)) names.push("Press banca", "Press militar sentado");
+  return new Set(names);
+}
+
 function pickExercises(pool, focus) {
   const wanted = focus.includes("superior")
     ? ["Pecho", "Espalda", "Hombro", "Bíceps", "Tríceps"]
@@ -131,10 +169,14 @@ function pickExercises(pool, focus) {
 }
 
 export function progressionAdvice(entries = []) {
-  if (entries.some(e => e.feeling === "Sentí dolor")) return "Baja el peso o cambia el ejercicio la próxima vez. El dolor manda.";
-  const easy = entries.some(e => e.feeling === "Muy fácil");
-  const completed = entries.every(e => parseReps(e.reps).every(n => n >= 12));
-  const hard = entries.some(e => e.feeling === "Muy difícil" || e.feeling === "Difícil");
+  if (entries.some(e => ["Sentí dolor", "Senti dolor"].includes(e.feeling))) return "Baja el peso o cambia el ejercicio la próxima vez. El dolor manda.";
+  const easy = entries.some(e => ["Muy fácil", "Muy facil"].includes(e.feeling));
+  const completed = entries.every(e => {
+    const targetMax = targetMaxFromRange(e.targetReps || e.reps);
+    const actual = parseReps(e.reps);
+    return actual.length > 0 && actual.every(n => n >= targetMax);
+  });
+  const hard = entries.some(e => ["Muy difícil", "Difícil", "Muy dificil", "Dificil"].includes(e.feeling));
   if (completed && !hard) {
     return easy
       ? "Puedes subir un poco el peso la próxima vez."
@@ -152,16 +194,22 @@ function parseReps(repsStr) {
     .filter(n => Number.isFinite(n));
 }
 
+function targetMaxFromRange(repsStr) {
+  const nums = parseReps(repsStr);
+  return nums.length ? Math.max(...nums) : 12;
+}
+
 export function weeklyAdjustment(a = {}, progress = [], profileGoal = "") {
+  const recommendations = [];
   const noDropTwoWeeks = progress.length >= 2
     && progress.at(-1).weight >= progress.at(-2).weight
     && profileGoal === "perder grasa";
-  if (a.pain === "sí") return "Prioridad: baja peso, reduce rango o cambia el ejercicio que molestó. No entrenes sobre dolor agudo.";
-  if (a.training === "no") return "Reduce días o duración por una semana. Mantén ejercicios principales y haz sesiones más cortas.";
-  if (a.hunger === "sí") return "Usa alimentos más saciantes: verduras, papa cocida, frutas enteras, proteína en cada comida y revisa el tamaño del déficit.";
-  if (noDropTwoWeeks) return "Si cumpliste bien y no bajaste en 2 semanas, reduce 100-150 kcal o agrega 10 minutos de cardio suave.";
-  if (a.energy === "no") return "Sube 100-150 kcal o reduce cardio por unos días. El plan debe ser sostenible.";
-  return "Mantén el plan una semana más. Ajusta solo cuando la tendencia lo pida.";
+  if (a.pain === "sí") recommendations.push("Prioridad: baja peso, reduce rango o cambia el ejercicio que molestó. No entrenes sobre dolor agudo.");
+  if (a.training === "no") recommendations.push("Reduce días o duración por una semana. Mantén ejercicios principales y haz sesiones más cortas.");
+  if (a.hunger === "sí") recommendations.push("Usa alimentos más saciantes: verduras, papa cocida, frutas enteras, proteína en cada comida y revisa el tamaño del déficit.");
+  if (noDropTwoWeeks) recommendations.push("Si cumpliste bien y no bajaste en 2 semanas, reduce 100-150 kcal o agrega 10 minutos de cardio suave.");
+  if (a.energy === "no") recommendations.push("Sube 100-150 kcal o reduce cardio por unos días. El plan debe ser sostenible.");
+  return recommendations.length ? recommendations : ["Mantén el plan una semana más. Ajusta solo cuando la tendencia lo pida."];
 }
 
 export function progressMessage(entries = [], profileGoal = "") {
@@ -179,13 +227,25 @@ export function estimateRecipe(text, foods = []) {
   return foods.reduce((sum, f) => {
     const words = f.name.toLowerCase().split(/\s+/);
     const needle = words.slice(0, 2).join("\\s+");
-    const re = new RegExp(`${needle}[^0-9]{0,30}(\\d{1,5})\\s*(?:g|gr|gramos)\\b`, "i");
+    const units = "g|gr|gramos|ml|mililitros|taza|tazas|cucharada|cucharadas|cucharadita|cucharaditas|unidad|unidades";
+    const re = new RegExp(`(?:(\\d{1,5})\\s*(${units})[^,.;\\n]{0,40}${needle}|${needle}[^0-9]{0,40}(\\d{1,5})\\s*(${units}))`, "i");
     const match = lower.match(re);
     if (!match) return sum;
-    const grams = Number(match[1]);
+    const amount = Number(match[1] || match[3]);
+    const unit = String(match[2] || match[4] || "g").toLowerCase();
+    const grams = unitToGrams(amount, unit, f);
     if (!Number.isFinite(grams) || grams <= 0 || grams > 5000) return sum;
     return addMacros(sum, macrosFor(f, grams));
   }, emptyMacros());
+}
+
+function unitToGrams(amount, unit, foodItem) {
+  if (["g", "gr", "gramos", "ml", "mililitros"].includes(unit)) return amount;
+  if (["cucharada", "cucharadas"].includes(unit)) return amount * 15;
+  if (["cucharadita", "cucharaditas"].includes(unit)) return amount * 5;
+  if (["taza", "tazas"].includes(unit)) return amount * 240;
+  if (["unidad", "unidades"].includes(unit)) return amount * (foodItem.portions?.[0]?.[1] || 100);
+  return amount;
 }
 
 export function calculatePlate(form, foods = []) {

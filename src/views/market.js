@@ -7,11 +7,18 @@ import { toast } from "../components/toast.js";
 
 export function render(state) {
   const budget = String(state.profile.budget || "").toLowerCase();
+  const avoid = String(state.profile.avoid || "").toLowerCase();
+  const preferences = String(state.profile.preferences || "").toLowerCase();
   const economical = budget.includes("bajo") || budget.includes("econ");
+  const wantsEasy = preferences.includes("facil") || preferences.includes("fácil");
+  const blockedTerms = avoid.split(/[,;]/).map(x => x.trim()).filter(Boolean);
   const picks = foods
+    .filter(f => !blockedTerms.some(term => f.name.toLowerCase().includes(term)))
     .filter(f => economical
       ? f.tags.cheap
-      : ["Proteínas", "Carbohidratos", "Grasas", "Verduras", "Frutas", "Lácteos"].includes(f.category))
+      : wantsEasy
+        ? f.tags.easy
+        : ["Proteínas", "Carbohidratos", "Grasas", "Verduras", "Frutas", "Lácteos"].includes(f.category))
     .slice(0, 22);
   const grouped = groupBy(picks, f => marketCategory(f.category));
   const days = [1, 3, 5, 7];

@@ -1,4 +1,3 @@
-// Vista de progreso: seguimiento semanal.
 import { input, select, sectionTitle } from "../components/ui.js";
 import { escapeHtml, one } from "../utils/format.js";
 import { hasBodyProfile, progressMessage } from "../utils/calc.js";
@@ -8,17 +7,17 @@ export function render(state) {
   if (!hasBodyProfile(state.profile)) return completeProfilePrompt();
   return `
     <div class="view-stack">
-      ${sectionTitle("Mi progreso", "Seguimiento semanal de peso, hábitos, energía, hambre, sueño, agua y ánimo.")}
+      ${sectionTitle("Mi progreso", "Seguimiento semanal de peso, habitos, energia, hambre, sueno, agua y animo.")}
       <form id="progressForm" class="card form-grid form-grid-4">
         ${input("weight", "Peso actual (kg)", state.profile.weight, "number", { min: 30, max: 250, step: 0.1 })}
-        ${select("food", "Alimentación", ["bien", "regular", "difícil"], "bien")}
-        ${select("training", "Entrenamientos", ["bien", "regular", "difícil"], "bien")}
-        ${select("energy", "Energía", ["alta", "normal", "baja"], "normal")}
+        ${select("food", "Alimentacion", ["bien", "regular", "dificil"], "bien")}
+        ${select("training", "Entrenamientos", ["bien", "regular", "dificil"], "bien")}
+        ${select("energy", "Energia", ["alta", "normal", "baja"], "normal")}
         ${select("hunger", "Hambre", ["baja", "normal", "mucha"], "normal")}
-        ${input("sleep", "Sueño", "7 h")}
+        ${input("sleep", "Sueno", "7 h")}
         ${input("water", "Agua", "6 vasos")}
-        ${input("mood", "Ánimo", "estable")}
-        ${select("difficulty", "Dificultad del plan", ["fácil", "normal", "difícil"], "normal")}
+        ${input("mood", "Animo", "estable")}
+        ${select("difficulty", "Dificultad del plan", ["facil", "normal", "dificil"], "normal")}
         <div class="form-actions form-actions-span2"><button class="btn btn-primary" type="submit">Registrar semana</button></div>
       </form>
 
@@ -29,9 +28,9 @@ export function render(state) {
           <header class="card-head"><h2>Historial</h2></header>
           <div class="card-body">
             <table class="data-table">
-              <thead><tr><th>Semana</th><th>Peso</th><th>Comida</th><th>Entreno</th><th>Notas</th></tr></thead>
+              <thead><tr><th>Semana</th><th>Peso</th><th>Comida</th><th>Entreno</th><th>Notas</th><th></th></tr></thead>
               <tbody>
-                ${state.progress.map(p => `<tr><td>${p.week}</td><td>${one(p.weight)} kg</td><td>${escapeHtml(p.food)}</td><td>${escapeHtml(p.training)}</td><td>Energía ${escapeHtml(p.energy)}, hambre ${escapeHtml(p.hunger)}, sueño ${escapeHtml(p.sleep)}</td></tr>`).join("")}
+                ${state.progress.map(p => `<tr><td>${p.week}</td><td>${one(p.weight)} kg</td><td>${escapeHtml(p.food)}</td><td>${escapeHtml(p.training)}</td><td>Energia ${escapeHtml(p.energy)}, hambre ${escapeHtml(p.hunger)}, sueno ${escapeHtml(p.sleep)}</td><td><button class="btn btn-ghost btn-sm" data-delete-progress="${escapeHtml(p.id)}">Eliminar</button></td></tr>`).join("")}
               </tbody>
             </table>
           </div>
@@ -49,12 +48,21 @@ export function bind(ctx) {
   form.addEventListener("submit", e => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form));
+    data.id = crypto.randomUUID();
     data.weight = Number(data.weight);
     data.week = ctx.state.progress.length + 1;
     ctx.state.progress.push(data);
-    ctx.state.profile.weight = data.weight;
     ctx.save();
     toast.success("Semana registrada");
     ctx.render();
+  });
+
+  document.querySelectorAll("[data-delete-progress]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      ctx.state.progress = ctx.state.progress.filter(item => item.id !== btn.dataset.deleteProgress);
+      ctx.save();
+      toast.info("Registro de progreso eliminado");
+      ctx.render();
+    });
   });
 }

@@ -10,6 +10,8 @@ export const defaultState = {
   active: "inicio",
   onboarded: false,
   onboardingStep: 0,
+  selectedDiaryDate: todayISO(),
+  selectedWorkoutDay: 1,
   profile: {
     name: "", age: "", sex: "", weight: "", height: "",
     experience: "", goal: "", days: "", minutes: "", place: "",
@@ -19,10 +21,15 @@ export const defaultState = {
   diary: [],
   plates: [],
   recipes: [],
+  customFoods: [],
   workoutLogs: [],
   cardio: [],
   progress: []
 };
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // --- Auth ---
 export function loadAuth() {
@@ -54,7 +61,18 @@ export function loadState(email = "") {
 }
 
 export function normalizeState(rawState = {}) {
-  const merged = { ...structuredClone(defaultState), ...rawState };
+  const source = rawState && typeof rawState === "object" ? rawState : {};
+  const merged = { ...structuredClone(defaultState), ...source };
+  merged.profile = { ...structuredClone(defaultState.profile), ...(source.profile || {}) };
+  merged.selectedDiaryDate = source.selectedDiaryDate || todayISO();
+  merged.selectedWorkoutDay = Number(source.selectedWorkoutDay) || 1;
+  merged.diary = Array.isArray(source.diary) ? source.diary.map(normalizeDatedEntry) : [];
+  merged.cardio = Array.isArray(source.cardio) ? source.cardio.map(normalizeDatedEntry) : [];
+  merged.workoutLogs = Array.isArray(source.workoutLogs) ? source.workoutLogs.map(normalizeDatedEntry) : [];
+  merged.progress = Array.isArray(source.progress) ? source.progress.map(normalizeIdEntry) : [];
+  merged.plates = Array.isArray(source.plates) ? source.plates.map(normalizeIdEntry) : [];
+  merged.recipes = Array.isArray(source.recipes) ? source.recipes.map(normalizeIdEntry) : [];
+  merged.customFoods = Array.isArray(source.customFoods) ? source.customFoods : [];
   const profile = merged.profile || {};
   // Limpieza de perfil demo heredado
   const looksLikeDemoProfile =
@@ -67,6 +85,24 @@ export function normalizeState(rawState = {}) {
     merged.progress = [];
   }
   return merged;
+}
+
+function normalizeDatedEntry(entry) {
+  const normalized = { ...entry, id: entry.id || crypto.randomUUID() };
+  normalized.dateISO = entry.dateISO || parseDateToISO(entry.date) || todayISO();
+  return normalized;
+}
+
+function normalizeIdEntry(entry) {
+  return { ...entry, id: entry.id || crypto.randomUUID() };
+}
+
+function parseDateToISO(dateText) {
+  if (!dateText) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return dateText;
+  const parts = String(dateText).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!parts) return "";
+  return `${parts[3]}-${parts[2].padStart(2, "0")}-${parts[1].padStart(2, "0")}`;
 }
 
 let remoteSaveTimer = null;
