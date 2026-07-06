@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FitNovato | Guía fitness para empezar</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegación principal">
+        <div class="brand">
+          <span class="brand-mark">FN</span>
+          <div>
+            <strong>FitNovato</strong>
+            <small>Comida + entrenamiento</small>
+          </div>
+        </div>
+        <div id="accountBox"></div>
+        <nav id="nav"></nav>
+      </aside>
+
+      <main class="main">
+        <section class="hero">
+          <img src="assets/fitness-banner.png" alt="Comida balanceada y elementos de entrenamiento" />
+          <div class="hero-copy">
+            <p>Guía práctica para principiantes</p>
+            <h1>Qué comer, cuánto comer, qué entrenar y cómo progresar.</h1>
+          </div>
+        </section>
+
+        <section id="view" class="view" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <template id="metric-card">
+      <article class="metric">
+        <span></span>
+        <strong></strong>
+        <small></small>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
