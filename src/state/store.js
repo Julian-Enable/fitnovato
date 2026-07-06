@@ -8,6 +8,8 @@ const AUTH_KEY = "fitnovato-auth-v1";
 
 export const defaultState = {
   active: "inicio",
+  onboarded: false,
+  onboardingStep: 0,
   profile: {
     name: "", age: "", sex: "", weight: "", height: "",
     experience: "", goal: "", days: "", minutes: "", place: "",
