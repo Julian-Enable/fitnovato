@@ -30,3 +30,5 @@ Para producción se recomienda agregar backend propio con:
 - Sesiones seguras.
 - Recuperación y verificación de correo.
 - Persistencia multi-dispositivo.
+
+Deploy refresh: 2026-07-06T03:25Z
